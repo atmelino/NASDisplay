@@ -39,21 +39,29 @@ void loop() {
 
   //read message from Pi
   while (Serial.available() > 0) {
-    lcd.write(Serial.read());
+    //lcd.write(Serial.read());
 
     str = Serial.readStringUntil('\n');
+    //lcd.setCursor(0, 0);
+
+    lcd.clear();
+    lcd.print(str.c_str());
+
+
     Serial.println(str);
+
+    //    int number;
+    //    number = str.length();
+    //    if (number > 15)
+    //      number = 15;
+    //    for (int i = 0; i < number; i++) {}
+
+
   }
 
-
-
-  lcd.setCursor(9, 1);            // move cursor to second line "1" and 9 spaces over
-  lcd.print(millis() / 1000);     // display seconds elapsed since power-up
-
-  lcd.setCursor(0, 1);            // move to the begining of the second line
   lcd_key = read_LCD_buttons();   // read the buttons
 
-  switch (lcd_key) {              // depending on which button was pushed, we perform an action
+  switch (lcd_key) {
     case btnUP: {
         if (clear) {
           Serial.println("UP");
