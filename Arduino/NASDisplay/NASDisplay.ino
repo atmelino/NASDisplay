@@ -1,4 +1,3 @@
-
 #include <LiquidCrystal.h>
 
 LiquidCrystal lcd(8, 9, 4, 5, 6, 7);           // select the pins used on the LCD panel
@@ -42,21 +41,16 @@ void loop() {
     //lcd.write(Serial.read());
 
     str = Serial.readStringUntil('\n');
-    //lcd.setCursor(0, 0);
-
-    lcd.clear();
-    lcd.print(str.c_str());
-
-
     Serial.println(str);
 
-    //    int number;
-    //    number = str.length();
-    //    if (number > 15)
-    //      number = 15;
-    //    for (int i = 0; i < number; i++) {}
-
-
+    String line1 = getValue(str, ';', 0);
+    String line2 = getValue(str, ';', 1);
+    Serial.println(line1);
+    lcd.clear();
+    //lcd.setCursor(0, 0);
+    lcd.print(line1.c_str());
+    lcd.setCursor(0, 1);            // set the LCD cursor   position
+    lcd.print(line2.c_str());
   }
 
   lcd_key = read_LCD_buttons();   // read the buttons
@@ -94,7 +88,23 @@ void loop() {
   //debounce
   delay(70);
 
+}
 
 
 
+String getValue(String data, char separator, int index)
+{
+  int found = 0;
+  int strIndex[] = {0, -1};
+  int maxIndex = data.length() - 1;
+
+  for (int i = 0; i <= maxIndex && found <= index; i++) {
+    if (data.charAt(i) == separator || i == maxIndex) {
+      found++;
+      strIndex[0] = strIndex[1] + 1;
+      strIndex[1] = (i == maxIndex) ? i + 1 : i;
+    }
+  }
+
+  return found > index ? data.substring(strIndex[0], strIndex[1]) : "";
 }

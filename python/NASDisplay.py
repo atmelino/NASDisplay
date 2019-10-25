@@ -3,6 +3,9 @@
 
 from __future__ import absolute_import
 
+import fcntl
+import termios
+import atexit
 import codecs
 import os
 import sys
@@ -12,11 +15,13 @@ import serial
 from serial.tools.list_ports import comports
 from serial.tools import hexlify_codec
 
+LCDlines = []
 receivedString = ''
 
 # pylint: disable=wrong-import-order,wrong-import-position
 
-codecs.register(lambda c: hexlify_codec.getregentry() if c == 'hexlify' else None)
+codecs.register(lambda c: hexlify_codec.getregentry()
+                if c == 'hexlify' else None)
 
 try:
     raw_input
@@ -81,11 +86,6 @@ class ConsoleBase(object):
         self.setup()
 
 
-
-import atexit
-import termios
-import fcntl
-
 class Console(ConsoleBase):
     def __init__(self):
         super(Console, self).__init__()
@@ -117,11 +117,11 @@ class Console(ConsoleBase):
         termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.old)
 
 
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
 class Transform(object):
     """do-nothing: forward all data unchanged"""
+
     def rx(self, text):
         """text received from serial port"""
         return text
@@ -159,7 +159,8 @@ class LF(Transform):
 class NoTerminal(Transform):
     """remove typical terminal control codes from input"""
 
-    REPLACEMENT_MAP = dict((x, 0x2400 + x) for x in range(32) if unichr(x) not in '\r\n\b\t')
+    REPLACEMENT_MAP = dict((x, 0x2400 + x)
+                           for x in range(32) if unichr(x) not in '\r\n\b\t')
     REPLACEMENT_MAP.update(
         {
             0x7F: 0x2421,  # DEL
@@ -195,7 +196,8 @@ class Printable(Transform):
             elif c < ' ':
                 r.append(unichr(0x2400 + ord(c)))
             else:
-                r.extend(unichr(0x2080 + ord(d) - 48) for d in '{:d}'.format(ord(c)))
+                r.extend(unichr(0x2080 + ord(d) - 48)
+                         for d in '{:d}'.format(ord(c)))
                 r.append(' ')
         return ''.join(r)
 
@@ -305,7 +307,8 @@ class NASDisplay(object):
         self.alive = True
         self._start_reader()
         # enter console->serial loop
-        self.transmitter_thread = threading.Thread(target=self.writer, name='tx')
+        self.transmitter_thread = threading.Thread(
+            target=self.writer, name='tx')
         self.transmitter_thread.daemon = True
         self.transmitter_thread.start()
         self.console.setup()
@@ -357,7 +360,6 @@ class NASDisplay(object):
                 if data is not '':
                     receivedString += data
                     self.evaluateResponse(receivedString)
-                                
 
                 # if data:
                 #     if self.raw:
@@ -368,26 +370,22 @@ class NASDisplay(object):
                 #             text = transformation.rx(text)
                 #         self.console.write(text)
 
-
         except serial.SerialException:
             self.alive = False
             self.console.cancel()
             raise       # XXX handle instead of re-raise?
 
-
-
     def evaluateResponse(self, message):
         global receivedString
-        #print 'evaluateResponse called \n'
-        #print message
+        # print 'evaluateResponse called \n'
+        # print message
 
         if 'UP' in message:
+            self.makeLCDLines()
             print 'UP found\n'
             receivedString = ''
-            myIP = socket.gethostbyname(socket.gethostname())
-            print myIP
-            self.serial.write(myIP)
-
+            sendString = LCDlines[0]+';'+LCDlines[1]
+            self.serial.write(sendString)
 
         if 'DOWN' in message:
             print 'DOWN found\n'
@@ -397,8 +395,12 @@ class NASDisplay(object):
             print 'SELECT found\n'
             receivedString = ''
 
-
-
+    def makeLCDLines(self):
+        myIP = socket.gethostbyname(socket.gethostname())
+        print myIP
+        LCDlines.append(myIP)
+        LCDlines.append("some text1")
+        LCDlines.append("some text2")
 
     def writer(self):
         """\
@@ -424,7 +426,7 @@ class NASDisplay(object):
                     self.stop()             # exit app
                     break
                 else:
-                    #~ if self.raw:
+                    # ~ if self.raw:
                     text = c
                     for transformation in self.tx_transformations:
                         text = transformation.tx(text)
@@ -446,8 +448,8 @@ class NASDisplay(object):
             if self.echo:
                 self.console.write(c)
         else:
-            sys.stderr.write('--- unknown menu character {} --\n'.format(key_description(c)))
-
+            sys.stderr.write(
+                '--- unknown menu character {} --\n'.format(key_description(c)))
 
     def change_port(self):
         """Have a conversation with the user to change the serial port"""
@@ -470,12 +472,14 @@ class NASDisplay(object):
                 new_serial.open()
                 new_serial.break_condition = self.serial.break_condition
             except Exception as e:
-                sys.stderr.write('--- ERROR opening new port: {} ---\n'.format(e))
+                sys.stderr.write(
+                    '--- ERROR opening new port: {} ---\n'.format(e))
                 new_serial.close()
             else:
                 self.serial.close()
                 self.serial = new_serial
-                sys.stderr.write('--- Port changed to: {} ---\n'.format(self.serial.port))
+                sys.stderr.write(
+                    '--- Port changed to: {} ---\n'.format(self.serial.port))
             # and restart the reader thread
             self._start_reader()
 
@@ -487,7 +491,8 @@ class NASDisplay(object):
         # reader thread needs to be shut down
         self._stop_reader()
         self.serial.close()
-        sys.stderr.write('\n--- Port closed: {} ---\n'.format(self.serial.port))
+        sys.stderr.write(
+            '\n--- Port closed: {} ---\n'.format(self.serial.port))
         do_change_port = False
         while not self.serial.is_open:
             sys.stderr.write('--- Quit: {exit} | p: port change | any other key to reconnect ---\n'.format(
@@ -508,7 +513,8 @@ class NASDisplay(object):
         else:
             # and restart the reader thread
             self._start_reader()
-            sys.stderr.write('--- Port opened: {} ---\n'.format(self.serial.port))
+            sys.stderr.write(
+                '--- Port opened: {} ---\n'.format(self.serial.port))
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -689,11 +695,13 @@ def main(default_port=None, default_baudrate=9600, default_rts=None, default_dtr
 
             if args.dtr is not None:
                 if not args.quiet:
-                    sys.stderr.write('--- forcing DTR {}\n'.format('active' if args.dtr else 'inactive'))
+                    sys.stderr.write(
+                        '--- forcing DTR {}\n'.format('active' if args.dtr else 'inactive'))
                 serial_instance.dtr = args.dtr
             if args.rts is not None:
                 if not args.quiet:
-                    sys.stderr.write('--- forcing RTS {}\n'.format('active' if args.rts else 'inactive'))
+                    sys.stderr.write(
+                        '--- forcing RTS {}\n'.format('active' if args.rts else 'inactive'))
                 serial_instance.rts = args.rts
 
             if isinstance(serial_instance, serial.Serial):
@@ -701,7 +709,8 @@ def main(default_port=None, default_baudrate=9600, default_rts=None, default_dtr
 
             serial_instance.open()
         except serial.SerialException as e:
-            sys.stderr.write('could not open port {!r}: {}\n'.format(args.port, e))
+            sys.stderr.write(
+                'could not open port {!r}: {}\n'.format(args.port, e))
             if args.develop:
                 raise
             if not args.ask:
@@ -740,6 +749,7 @@ def main(default_port=None, default_baudrate=9600, default_rts=None, default_dtr
         sys.stderr.write('\n--- exit ---\n')
     nASDisplay.join()
     nASDisplay.close()
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 if __name__ == '__main__':
