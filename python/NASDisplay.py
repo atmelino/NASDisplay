@@ -12,6 +12,7 @@ import sys
 import threading
 import socket
 import serial
+import sensors
 from serial.tools.list_ports import comports
 from serial.tools import hexlify_codec
 
@@ -238,31 +239,6 @@ TRANSFORMATIONS = {
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-def ask_for_port():
-    """\
-    Show a list of ports and ask the user for a choice. To make selection
-    easier on systems with long device names, also allow the input of an
-    index.
-    """
-    sys.stderr.write('\n--- Available ports:\n')
-    ports = []
-    for n, (port, desc, hwid) in enumerate(sorted(comports()), 1):
-        sys.stderr.write('--- {:2}: {:20} {!r}\n'.format(n, port, desc))
-        ports.append(port)
-    while True:
-        port = raw_input('--- Enter port index or full name: ')
-        try:
-            index = int(port) - 1
-            if not 0 <= index < len(ports):
-                sys.stderr.write('--- Invalid index!\n')
-                continue
-        except ValueError:
-            pass
-        else:
-            port = ports[index]
-        return port
-
-
 class NASDisplay(object):
     """\
     Terminal application. Copy data from serial port to console and vice versa.
@@ -286,6 +262,7 @@ class NASDisplay(object):
         self.receiver_thread = None
         self.rx_decoder = None
         self.tx_decoder = None
+	sensors.init()
 
     def _start_reader(self):
         """Start reader thread"""
@@ -327,6 +304,7 @@ class NASDisplay(object):
 
     def close(self):
         self.serial.close()
+    sensors.cleanup()
 
     def update_transformations(self):
         """take list of transformation classes and instantiate them for rx and tx"""
@@ -377,6 +355,7 @@ class NASDisplay(object):
 
     def evaluateResponse(self, message):
         global receivedString
+	global LCDlines
         # print 'evaluateResponse called \n'
         # print message
 
@@ -396,11 +375,29 @@ class NASDisplay(object):
             receivedString = ''
 
     def makeLCDLines(self):
-        myIP = socket.gethostbyname(socket.gethostname())
+	global LCDlines
+        LCDlines=[]
+	host_name = socket.gethostname()
+	myIP = socket.gethostbyname(host_name + ".local")
         print myIP
         LCDlines.append(myIP)
-        LCDlines.append("some text1")
-        LCDlines.append("some text2")
+        #LCDlines.append("some text1")
+        #LCDlines.append("some text2")
+	sensors.init()
+	#print sensors
+	#mylist=sensors.iter_detected_chips()
+	#print mylist
+	try:
+	    for chip in sensors.iter_detected_chips():
+        	#print '%s at %s' % (chip, chip.adapter_name)
+        	for feature in chip:
+			if 'temp1' in feature.label:
+				templine= 'Temp %.2fC' % (feature.get_value())
+				print 'Temp %.2fC' % (feature.get_value())
+				#print ' %s: %.2f' % (feature.label, feature.get_value())
+	finally:
+	    sensors.cleanup()
+        LCDlines.append(templine)
 
     def writer(self):
         """\
@@ -451,76 +448,11 @@ class NASDisplay(object):
             sys.stderr.write(
                 '--- unknown menu character {} --\n'.format(key_description(c)))
 
-    def change_port(self):
-        """Have a conversation with the user to change the serial port"""
-        with self.console:
-            try:
-                port = ask_for_port()
-            except KeyboardInterrupt:
-                port = None
-        if port and port != self.serial.port:
-            # reader thread needs to be shut down
-            self._stop_reader()
-            # save settings
-            settings = self.serial.getSettingsDict()
-            try:
-                new_serial = serial.serial_for_url(port, do_not_open=True)
-                # restore settings and open
-                new_serial.applySettingsDict(settings)
-                new_serial.rts = self.serial.rts
-                new_serial.dtr = self.serial.dtr
-                new_serial.open()
-                new_serial.break_condition = self.serial.break_condition
-            except Exception as e:
-                sys.stderr.write(
-                    '--- ERROR opening new port: {} ---\n'.format(e))
-                new_serial.close()
-            else:
-                self.serial.close()
-                self.serial = new_serial
-                sys.stderr.write(
-                    '--- Port changed to: {} ---\n'.format(self.serial.port))
-            # and restart the reader thread
-            self._start_reader()
-
-    def suspend_port(self):
-        """\
-        open port temporarily, allow reconnect, exit and port change to get
-        out of the loop
-        """
-        # reader thread needs to be shut down
-        self._stop_reader()
-        self.serial.close()
-        sys.stderr.write(
-            '\n--- Port closed: {} ---\n'.format(self.serial.port))
-        do_change_port = False
-        while not self.serial.is_open:
-            sys.stderr.write('--- Quit: {exit} | p: port change | any other key to reconnect ---\n'.format(
-                exit=key_description(self.exit_character)))
-            k = self.console.getkey()
-            if k == self.exit_character:
-                self.stop()             # exit app
-                break
-            elif k in 'pP':
-                do_change_port = True
-                break
-            try:
-                self.serial.open()
-            except Exception as e:
-                sys.stderr.write('--- ERROR opening port: {} ---\n'.format(e))
-        if do_change_port:
-            self.change_port()
-        else:
-            # and restart the reader thread
-            self._start_reader()
-            sys.stderr.write(
-                '--- Port opened: {} ---\n'.format(self.serial.port))
-
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # default args can be used to override when calling main() from an other script
-# e.g to create a nASDisplay-my-device.py
-def main(default_port=None, default_baudrate=9600, default_rts=None, default_dtr=None):
+# e.g to create a nasDisplay-my-device.py
+def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, default_dtr=None):
     """Command line tool, entry point"""
 
     import argparse
@@ -635,7 +567,7 @@ def main(default_port=None, default_baudrate=9600, default_rts=None, default_dtr
         '--menu-char',
         type=int,
         metavar='NUM',
-        help='Unicode code of special character that is used to control nASDisplay (menu), default: %(default)s',
+        help='Unicode code of special character that is used to control nasDisplay (menu), default: %(default)s',
         default=0x14)  # Menu: CTRL+T
 
     group = parser.add_argument_group('diagnostics')
@@ -670,16 +602,6 @@ def main(default_port=None, default_baudrate=9600, default_rts=None, default_dtr
         filters = ['default']
 
     while True:
-        # no port given on command line -> ask user now
-        if args.port is None or args.port == '-':
-            try:
-                args.port = ask_for_port()
-            except KeyboardInterrupt:
-                sys.stderr.write('\n')
-                parser.error('user aborted and port is not given')
-            else:
-                if not args.port:
-                    parser.error('port is not given')
         try:
             serial_instance = serial.serial_for_url(
                 args.port,
@@ -720,35 +642,35 @@ def main(default_port=None, default_baudrate=9600, default_rts=None, default_dtr
         else:
             break
 
-    nASDisplay = NASDisplay(
+    nasDisplay = NASDisplay(
         serial_instance,
         echo=args.echo,
         eol=args.eol.lower(),
         filters=filters)
-    nASDisplay.exit_character = unichr(args.exit_char)
-    nASDisplay.menu_character = unichr(args.menu_char)
-    nASDisplay.raw = args.raw
-    nASDisplay.set_rx_encoding(args.serial_port_encoding)
-    nASDisplay.set_tx_encoding(args.serial_port_encoding)
+    nasDisplay.exit_character = unichr(args.exit_char)
+    nasDisplay.menu_character = unichr(args.menu_char)
+    nasDisplay.raw = args.raw
+    nasDisplay.set_rx_encoding(args.serial_port_encoding)
+    nasDisplay.set_tx_encoding(args.serial_port_encoding)
 
     if not args.quiet:
         sys.stderr.write('--- NASDisplay on {p.name}  {p.baudrate},{p.bytesize},{p.parity},{p.stopbits} ---\n'.format(
-            p=nASDisplay.serial))
+            p=nasDisplay.serial))
         sys.stderr.write('--- Quit: {} | Menu: {} | Help: {} followed by {} ---\n'.format(
-            key_description(nASDisplay.exit_character),
-            key_description(nASDisplay.menu_character),
-            key_description(nASDisplay.menu_character),
+            key_description(nasDisplay.exit_character),
+            key_description(nasDisplay.menu_character),
+            key_description(nasDisplay.menu_character),
             key_description('\x08')))
 
-    nASDisplay.start()
+    nasDisplay.start()
     try:
-        nASDisplay.join(True)
+        nasDisplay.join(True)
     except KeyboardInterrupt:
         pass
     if not args.quiet:
         sys.stderr.write('\n--- exit ---\n')
-    nASDisplay.join()
-    nASDisplay.close()
+    nasDisplay.join()
+    nasDisplay.close()
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
