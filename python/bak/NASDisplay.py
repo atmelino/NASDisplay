@@ -1,9 +1,13 @@
 #!/usr/bin/env python
+#
 
 from __future__ import absolute_import
+
 import fcntl
+import termios
 import atexit
 import codecs
+import os
 import sys
 import threading
 import socket
@@ -15,6 +19,8 @@ from serial.tools import hexlify_codec
 LCDlines = []
 receivedString = ''
 
+# pylint: disable=wrong-import-order,wrong-import-position
+
 codecs.register(lambda c: hexlify_codec.getregentry()
                 if c == 'hexlify' else None)
 
@@ -24,7 +30,93 @@ except NameError:
     # pylint: disable=redefined-builtin,invalid-name
     raw_input = input   # in python3 it's "raw"
     unichr = chr
+
+
+def key_description(character):
+    """generate a readable description for a key"""
+    ascii_code = ord(character)
+    if ascii_code < 32:
+        return 'Ctrl+{:c}'.format(ord('@') + ascii_code)
+    else:
+        return repr(character)
+
+
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+class ConsoleBase(object):
+    """OS abstraction for console (input/output codec, no echo)"""
+
+    def __init__(self):
+        if sys.version_info >= (3, 0):
+            self.byte_output = sys.stdout.buffer
+        else:
+            self.byte_output = sys.stdout
+        self.output = sys.stdout
+
+    def setup(self):
+        """Set console to read single characters, no echo"""
+
+    def cleanup(self):
+        """Restore default console settings"""
+
+    def getkey(self):
+        """Read a single key from the console"""
+        return None
+
+    def write_bytes(self, byte_string):
+        """Write bytes (already encoded)"""
+        self.byte_output.write(byte_string)
+        self.byte_output.flush()
+
+    def write(self, text):
+        """Write string"""
+        self.output.write(text)
+        self.output.flush()
+
+    def cancel(self):
+        """Cancel getkey operation"""
+
+    #  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -  -
+    # context manager:
+    # switch terminal temporary to normal mode (e.g. to get user input)
+
+    def __enter__(self):
+        self.cleanup()
+        return self
+
+    def __exit__(self, *args, **kwargs):
+        self.setup()
+
+
+class Console(ConsoleBase):
+    def __init__(self):
+        super(Console, self).__init__()
+        self.fd = sys.stdin.fileno()
+        self.old = termios.tcgetattr(self.fd)
+        atexit.register(self.cleanup)
+        if sys.version_info < (3, 0):
+            self.enc_stdin = codecs.getreader(sys.stdin.encoding)(sys.stdin)
+        else:
+            self.enc_stdin = sys.stdin
+
+    def setup(self):
+        new = termios.tcgetattr(self.fd)
+        new[3] = new[3] & ~termios.ICANON & ~termios.ECHO & ~termios.ISIG
+        new[6][termios.VMIN] = 1
+        new[6][termios.VTIME] = 0
+        termios.tcsetattr(self.fd, termios.TCSANOW, new)
+
+    def getkey(self):
+        c = self.enc_stdin.read(1)
+        if c == unichr(0x7f):
+            c = unichr(8)    # map the BS key (which yields DEL) to backspace
+        return c
+
+    def cancel(self):
+        fcntl.ioctl(self.fd, termios.TIOCSTI, b'\0')
+
+    def cleanup(self):
+        termios.tcsetattr(self.fd, termios.TCSAFLUSH, self.old)
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
@@ -37,6 +129,10 @@ class Transform(object):
 
     def tx(self, text):
         """text to be sent to serial port"""
+        return text
+
+    def echo(self, text):
+        """text to be sent but displayed on console"""
         return text
 
 
@@ -75,6 +171,20 @@ class NoTerminal(Transform):
     def rx(self, text):
         return text.translate(self.REPLACEMENT_MAP)
 
+    echo = rx
+
+
+class NoControls(NoTerminal):
+    """Remove all control codes, incl. CR+LF"""
+
+    REPLACEMENT_MAP = dict((x, 0x2400 + x) for x in range(32))
+    REPLACEMENT_MAP.update(
+        {
+            0x20: 0x2423,  # visual space
+            0x7F: 0x2421,  # DEL
+            0x9B: 0x2425,  # CSI
+        })
+
 
 class Printable(Transform):
     """Show decimal code for all non-ASCII characters and replace most control codes"""
@@ -92,6 +202,7 @@ class Printable(Transform):
                 r.append(' ')
         return ''.join(r)
 
+    echo = rx
 
 
 class DebugIO(Transform):
@@ -121,6 +232,7 @@ EOL_TRANSFORMATIONS = {
 TRANSFORMATIONS = {
     'direct': Transform,    # no transformation
     'default': NoTerminal,
+    'nocontrol': NoControls,
     'printable': Printable,
     'debug': DebugIO,
 }
@@ -128,18 +240,23 @@ TRANSFORMATIONS = {
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 class NASDisplay(object):
-    """
-    Show status on NAS and interpret button press
+    """\
+    Terminal application. Copy data from serial port to console and vice versa.
+    Handle special keys from the console to show menu etc.
     """
 
-    def __init__(self, serial_instance,  eol='crlf', filters=()):
+    def __init__(self, serial_instance, echo=False, eol='crlf', filters=()):
+        self.console = Console()
         self.serial = serial_instance
+        self.echo = echo
         self.raw = False
         self.input_encoding = 'UTF-8'
         self.output_encoding = 'UTF-8'
         self.eol = eol
         self.filters = filters
         self.update_transformations()
+        self.exit_character = unichr(0x1d)  # GS/CTRL+]
+        self.menu_character = unichr(0x14)  # Menu: CTRL+T
         self.alive = None
         self._reader_alive = None
         self.receiver_thread = None
@@ -166,6 +283,12 @@ class NASDisplay(object):
         """start worker threads"""
         self.alive = True
         self._start_reader()
+        # enter console->serial loop
+        self.transmitter_thread = threading.Thread(
+            target=self.writer, name='tx')
+        self.transmitter_thread.daemon = True
+        self.transmitter_thread.start()
+        self.console.setup()
 
     def stop(self):
         """set flag to stop worker threads"""
@@ -173,6 +296,7 @@ class NASDisplay(object):
 
     def join(self, transmit_only=False):
         """wait for worker threads to terminate"""
+        self.transmitter_thread.join()
         if not transmit_only:
             if hasattr(self.serial, 'cancel_read'):
                 self.serial.cancel_read()
@@ -180,7 +304,7 @@ class NASDisplay(object):
 
     def close(self):
         self.serial.close()
-        sensors.cleanup()
+    sensors.cleanup()
 
     def update_transformations(self):
         """take list of transformation classes and instantiate them for rx and tx"""
@@ -215,9 +339,18 @@ class NASDisplay(object):
                     receivedString += data
                     self.evaluateResponse(receivedString)
 
+                # if data:
+                #     if self.raw:
+                #         self.console.write_bytes(data)
+                #     else:
+                #         text = self.rx_decoder.decode(data)
+                #         for transformation in self.rx_transformations:
+                #             text = transformation.rx(text)
+                #         self.console.write(text)
 
         except serial.SerialException:
             self.alive = False
+            self.console.cancel()
             raise       # XXX handle instead of re-raise?
 
     def evaluateResponse(self, message):
@@ -240,8 +373,6 @@ class NASDisplay(object):
         if 'SELECT' in message:
             print 'SELECT found\n'
             receivedString = ''
-            sys.exit(1)
-
 
     def makeLCDLines(self):
 	global LCDlines
@@ -267,6 +398,56 @@ class NASDisplay(object):
 	finally:
 	    sensors.cleanup()
         LCDlines.append(templine)
+
+    def writer(self):
+        """\
+        Loop and copy console->serial until self.exit_character character is
+        found. When self.menu_character is found, interpret the next key
+        locally.
+        """
+        menu_active = False
+        try:
+            while self.alive:
+                try:
+                    c = self.console.getkey()
+                except KeyboardInterrupt:
+                    c = '\x03'
+                if not self.alive:
+                    break
+                if menu_active:
+                    self.handle_menu_key(c)
+                    menu_active = False
+                elif c == self.menu_character:
+                    menu_active = True      # next char will be for menu
+                elif c == self.exit_character:
+                    self.stop()             # exit app
+                    break
+                else:
+                    # ~ if self.raw:
+                    text = c
+                    for transformation in self.tx_transformations:
+                        text = transformation.tx(text)
+                    self.serial.write(self.tx_encoder.encode(text))
+                    if self.echo:
+                        echo_text = c
+                        for transformation in self.tx_transformations:
+                            echo_text = transformation.echo(echo_text)
+                        self.console.write(echo_text)
+        except:
+            self.alive = False
+            raise
+
+    def handle_menu_key(self, c):
+        """Implement a simple menu / settings"""
+        if c == self.menu_character or c == self.exit_character:
+            # Menu/exit character again -> send itself
+            self.serial.write(self.tx_encoder.encode(c))
+            if self.echo:
+                self.console.write(c)
+        else:
+            sys.stderr.write(
+                '--- unknown menu character {} --\n'.format(key_description(c)))
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # default args can be used to override when calling main() from an other script
@@ -338,6 +519,14 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
         help='ask again for port when open fails',
         default=False)
 
+    group = parser.add_argument_group('data handling')
+
+    group.add_argument(
+        '-e', '--echo',
+        action='store_true',
+        help='enable local echo (default off)',
+        default=False)
+
     group.add_argument(
         '--encoding',
         dest='serial_port_encoding',
@@ -365,6 +554,24 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
         help='Do no apply any encodings/transformations',
         default=False)
 
+    group = parser.add_argument_group('hotkeys')
+
+    group.add_argument(
+        '--exit-char',
+        type=int,
+        metavar='NUM',
+        help='Unicode of special character that is used to exit the application, default: %(default)s',
+        default=0x1d)  # GS/CTRL+]
+
+    group.add_argument(
+        '--menu-char',
+        type=int,
+        metavar='NUM',
+        help='Unicode code of special character that is used to control nasDisplay (menu), default: %(default)s',
+        default=0x14)  # Menu: CTRL+T
+
+    group = parser.add_argument_group('diagnostics')
+
     group.add_argument(
         '-q', '--quiet',
         action='store_true',
@@ -378,6 +585,9 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
         default=False)
 
     args = parser.parse_args()
+
+    if args.menu_char == args.exit_char:
+        parser.error('--exit-char can not be the same as --menu-char')
 
     if args.filter:
         if 'help' in args.filter:
@@ -434,8 +644,11 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
 
     nasDisplay = NASDisplay(
         serial_instance,
+        echo=args.echo,
         eol=args.eol.lower(),
         filters=filters)
+    nasDisplay.exit_character = unichr(args.exit_char)
+    nasDisplay.menu_character = unichr(args.menu_char)
     nasDisplay.raw = args.raw
     nasDisplay.set_rx_encoding(args.serial_port_encoding)
     nasDisplay.set_tx_encoding(args.serial_port_encoding)
@@ -443,6 +656,11 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
     if not args.quiet:
         sys.stderr.write('--- NASDisplay on {p.name}  {p.baudrate},{p.bytesize},{p.parity},{p.stopbits} ---\n'.format(
             p=nasDisplay.serial))
+        sys.stderr.write('--- Quit: {} | Menu: {} | Help: {} followed by {} ---\n'.format(
+            key_description(nasDisplay.exit_character),
+            key_description(nasDisplay.menu_character),
+            key_description(nasDisplay.menu_character),
+            key_description('\x08')))
 
     nasDisplay.start()
     try:

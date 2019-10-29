@@ -1,0 +1,16 @@
+[Unit]
+Description=NAS Display application
+Documentation=https://atmelino.github.io/NASDisplay/
+After=network.target
+
+[Service]
+Type=simple
+User=user
+WorkingDirectory=/media/data/github/NASDisplay/python
+ExecStart=/usr/bin/python /media/data/github/NASDisplay/python/NASDisplay.py
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
+
+
