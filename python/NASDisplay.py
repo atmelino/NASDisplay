@@ -28,6 +28,7 @@ except NameError:
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 
+
 class Transform(object):
     """do-nothing: forward all data unchanged"""
 
@@ -93,7 +94,6 @@ class Printable(Transform):
         return ''.join(r)
 
 
-
 class DebugIO(Transform):
     """Print what is sent and received"""
 
@@ -145,7 +145,7 @@ class NASDisplay(object):
         self.receiver_thread = None
         self.rx_decoder = None
         self.tx_decoder = None
-	sensors.init()
+        sensors.init()
 
     def _start_reader(self):
         """Start reader thread"""
@@ -215,14 +215,13 @@ class NASDisplay(object):
                     receivedString += data
                     self.evaluateResponse(receivedString)
 
-
         except serial.SerialException:
             self.alive = False
             raise       # XXX handle instead of re-raise?
 
     def evaluateResponse(self, message):
         global receivedString
-	global LCDlines
+        global LCDlines
         # print 'evaluateResponse called \n'
         # print message
 
@@ -242,35 +241,38 @@ class NASDisplay(object):
             receivedString = ''
             sys.exit(1)
 
-
     def makeLCDLines(self):
-	global LCDlines
-        LCDlines=[]
-	host_name = socket.gethostname()
-	myIP = socket.gethostbyname(host_name + ".local")
+        global LCDlines
+        LCDlines = []
+        host_name = socket.gethostname()
+        myIP = socket.gethostbyname(host_name + ".local")
         print myIP
         LCDlines.append(myIP)
         #LCDlines.append("some text1")
         #LCDlines.append("some text2")
-	sensors.init()
-	#print sensors
-	#mylist=sensors.iter_detected_chips()
-	#print mylist
-	try:
-	    for chip in sensors.iter_detected_chips():
-        	#print '%s at %s' % (chip, chip.adapter_name)
-        	for feature in chip:
-			if 'temp1' in feature.label:
-				templine= 'Temp %.2fC' % (feature.get_value())
-				print 'Temp %.2fC' % (feature.get_value())
-				#print ' %s: %.2f' % (feature.label, feature.get_value())
-	finally:
-	    sensors.cleanup()
+        sensors.init()
+        #print sensors
+        # mylist=sensors.iter_detected_chips()
+        #print mylist
+        try:
+            for chip in sensors.iter_detected_chips():
+                print '%s at %s' % (chip, chip.adapter_name)
+                templine=''
+#                if chip.has_key('feature') == 1:
+ #                   for feature in chip:
+  #                      if 'temp1' in feature.label:
+   #                         templine = 'Temp %.2fC' % (feature.get_value())
+    #                        print 'Temp %.2fC' % (feature.get_value())
+                            #print ' %s: %.2f' % (feature.label, feature.get_value())
+        finally:
+            sensors.cleanup()
         LCDlines.append(templine)
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # default args can be used to override when calling main() from an other script
 # e.g to create a nasDisplay-my-device.py
+
+
 def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, default_dtr=None):
     """Command line tool, entry point"""
 
