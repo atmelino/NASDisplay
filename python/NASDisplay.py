@@ -258,11 +258,11 @@ class NASDisplay(object):
             for chip in sensors.iter_detected_chips():
                 print '%s at %s' % (chip, chip.adapter_name)
                 templine=''
-#                if chip.has_key('feature') == 1:
- #                   for feature in chip:
-  #                      if 'temp1' in feature.label:
-   #                         templine = 'Temp %.2fC' % (feature.get_value())
-    #                        print 'Temp %.2fC' % (feature.get_value())
+                #if chip.has_key('feature') == 1:
+		for feature in chip:
+                        if 'temp1' in feature.label:
+                            templine = 'Temp %.2fC' % (feature.get_value())
+                            print 'Temp %.2fC' % (feature.get_value())
                             #print ' %s: %.2f' % (feature.label, feature.get_value())
         finally:
             sensors.cleanup()
