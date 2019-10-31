@@ -11,9 +11,11 @@ import serial
 import sensors
 from serial.tools.list_ports import comports
 from serial.tools import hexlify_codec
+from time import sleep
 
 LCDlines = []
 receivedString = ''
+spin=0
 
 codecs.register(lambda c: hexlify_codec.getregentry()
                 if c == 'hexlify' else None)
@@ -24,106 +26,6 @@ except NameError:
     # pylint: disable=redefined-builtin,invalid-name
     raw_input = input   # in python3 it's "raw"
     unichr = chr
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-# - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-
-
-class Transform(object):
-    """do-nothing: forward all data unchanged"""
-
-    def rx(self, text):
-        """text received from serial port"""
-        return text
-
-    def tx(self, text):
-        """text to be sent to serial port"""
-        return text
-
-
-class CRLF(Transform):
-    """ENTER sends CR+LF"""
-
-    def tx(self, text):
-        return text.replace('\n', '\r\n')
-
-
-class CR(Transform):
-    """ENTER sends CR"""
-
-    def rx(self, text):
-        return text.replace('\r', '\n')
-
-    def tx(self, text):
-        return text.replace('\n', '\r')
-
-
-class LF(Transform):
-    """ENTER sends LF"""
-
-
-class NoTerminal(Transform):
-    """remove typical terminal control codes from input"""
-
-    REPLACEMENT_MAP = dict((x, 0x2400 + x)
-                           for x in range(32) if unichr(x) not in '\r\n\b\t')
-    REPLACEMENT_MAP.update(
-        {
-            0x7F: 0x2421,  # DEL
-            0x9B: 0x2425,  # CSI
-        })
-
-    def rx(self, text):
-        return text.translate(self.REPLACEMENT_MAP)
-
-
-class Printable(Transform):
-    """Show decimal code for all non-ASCII characters and replace most control codes"""
-
-    def rx(self, text):
-        r = []
-        for c in text:
-            if ' ' <= c < '\x7f' or c in '\r\n\b\t':
-                r.append(c)
-            elif c < ' ':
-                r.append(unichr(0x2400 + ord(c)))
-            else:
-                r.extend(unichr(0x2080 + ord(d) - 48)
-                         for d in '{:d}'.format(ord(c)))
-                r.append(' ')
-        return ''.join(r)
-
-
-class DebugIO(Transform):
-    """Print what is sent and received"""
-
-    def rx(self, text):
-        sys.stderr.write(' [RX:{!r}] '.format(text))
-        sys.stderr.flush()
-        return text
-
-    def tx(self, text):
-        sys.stderr.write(' [TX:{!r}] '.format(text))
-        sys.stderr.flush()
-        return text
-
-
-# other ideas:
-# - add date/time for each newline
-# - insert newline after: a) timeout b) packet end character
-
-EOL_TRANSFORMATIONS = {
-    'crlf': CRLF,
-    'cr': CR,
-    'lf': LF,
-}
-
-TRANSFORMATIONS = {
-    'direct': Transform,    # no transformation
-    'default': NoTerminal,
-    'printable': Printable,
-    'debug': DebugIO,
-}
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -132,14 +34,12 @@ class NASDisplay(object):
     Show status on NAS and interpret button press
     """
 
-    def __init__(self, serial_instance,  eol='crlf', filters=()):
+    def __init__(self, serial_instance,  eol='crlf'):
         self.serial = serial_instance
         self.raw = False
         self.input_encoding = 'UTF-8'
         self.output_encoding = 'UTF-8'
         self.eol = eol
-        self.filters = filters
-        self.update_transformations()
         self.alive = None
         self._reader_alive = None
         self.receiver_thread = None
@@ -166,10 +66,15 @@ class NASDisplay(object):
         """start worker threads"""
         self.alive = True
         self._start_reader()
+        # start timer thread
+        self.Timer_thread = threading.Thread(target=self.myTimer)
+        self.Timer_thread.setDaemon(1)
+        self.Timer_thread.start()
 
     def stop(self):
         """set flag to stop worker threads"""
         self.alive = False
+        sys.exit(1)
 
     def join(self, transmit_only=False):
         """wait for worker threads to terminate"""
@@ -178,16 +83,33 @@ class NASDisplay(object):
                 self.serial.cancel_read()
             self.receiver_thread.join()
 
+    def myTimer(self):
+        global spin
+        global LCDlines
+        while True:
+            sleep(2) 
+            self.makeLCDLines()
+            sendString = LCDlines[0]+';'+LCDlines[1]
+            self.serial.write(sendString)
+
+#            LCDlines = []
+#            if spin == 0:
+#                spin=1
+#                spinchar='+'
+#            else:
+#                spin=0
+#                spinchar='X'
+#            print spinchar
+#            LCDlines.append(spinchar)
+#            LCDlines.append(spinchar)
+#            sendString = LCDlines[0]+';'+LCDlines[1]
+#            print LCDlines
+#            print sendString
+#            self.serial.write(sendString)
+
     def close(self):
         self.serial.close()
         sensors.cleanup()
-
-    def update_transformations(self):
-        """take list of transformation classes and instantiate them for rx and tx"""
-        transformations = [EOL_TRANSFORMATIONS[self.eol]] + [TRANSFORMATIONS[f]
-                                                             for f in self.filters]
-        self.tx_transformations = [t() for t in transformations]
-        self.rx_transformations = list(reversed(self.tx_transformations))
 
     def set_rx_encoding(self, encoding, errors='replace'):
         """set encoding for received data"""
@@ -230,6 +152,8 @@ class NASDisplay(object):
             print 'UP found\n'
             receivedString = ''
             sendString = LCDlines[0]+';'+LCDlines[1]
+            print LCDlines
+            print sendString
             self.serial.write(sendString)
 
         if 'DOWN' in message:
@@ -243,30 +167,36 @@ class NASDisplay(object):
 
     def makeLCDLines(self):
         global LCDlines
+        global spin
         LCDlines = []
+        if spin == 0:
+                spin=1
+                spinchar='+'
+        else:
+                spin=0
+                spinchar='X'
         host_name = socket.gethostname()
         myIP = socket.gethostbyname(host_name + ".local")
-        print myIP
+        #print myIP
         LCDlines.append(myIP)
-        #LCDlines.append("some text1")
-        #LCDlines.append("some text2")
         sensors.init()
         #print sensors
         # mylist=sensors.iter_detected_chips()
         #print mylist
         try:
             for chip in sensors.iter_detected_chips():
-                print '%s at %s' % (chip, chip.adapter_name)
+                #print '%s at %s' % (chip, chip.adapter_name)
                 templine=''
                 #if chip.has_key('feature') == 1:
 		for feature in chip:
                         if 'temp1' in feature.label:
-                            templine = 'Temp %.2fC' % (feature.get_value())
-                            print 'Temp %.2fC' % (feature.get_value())
+                            templine = '%s Temp %.2fC' % (spinchar,feature.get_value())
+                            #print 'Temp %.2fC' % (feature.get_value())
                             #print ' %s: %.2f' % (feature.label, feature.get_value())
+                LCDlines.append(templine)
         finally:
             sensors.cleanup()
-        LCDlines.append(templine)
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # default args can be used to override when calling main() from an other script
@@ -348,13 +278,6 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
         default='UTF-8')
 
     group.add_argument(
-        '-f', '--filter',
-        action='append',
-        metavar='NAME',
-        help='add text transformation',
-        default=[])
-
-    group.add_argument(
         '--eol',
         choices=['CR', 'LF', 'CRLF'],
         type=lambda c: c.upper(),
@@ -381,17 +304,6 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
 
     args = parser.parse_args()
 
-    if args.filter:
-        if 'help' in args.filter:
-            sys.stderr.write('Available filters:\n')
-            sys.stderr.write('\n'.join(
-                '{:<10} = {.__doc__}'.format(k, v)
-                for k, v in sorted(TRANSFORMATIONS.items())))
-            sys.stderr.write('\n')
-            sys.exit(1)
-        filters = args.filter
-    else:
-        filters = ['default']
 
     while True:
         try:
@@ -436,8 +348,7 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
 
     nasDisplay = NASDisplay(
         serial_instance,
-        eol=args.eol.lower(),
-        filters=filters)
+        eol=args.eol.lower())
     nasDisplay.raw = args.raw
     nasDisplay.set_rx_encoding(args.serial_port_encoding)
     nasDisplay.set_tx_encoding(args.serial_port_encoding)
