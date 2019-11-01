@@ -184,7 +184,7 @@ class NASDisplay(object):
                     except Exception:
                         value = 0
             if value is not None:
-                print '%s  %s: %.2f' % (chip, feature.label, value)
+                #print '%s  %s: %.2f' % (chip, feature.label, value)
                 return value
             else:
                 return 00.0
