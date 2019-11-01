@@ -15,7 +15,7 @@ from time import sleep
 
 LCDlines = []
 receivedString = ''
-spin=0
+spin = 0
 
 codecs.register(lambda c: hexlify_codec.getregentry()
                 if c == 'hexlify' else None)
@@ -87,25 +87,10 @@ class NASDisplay(object):
         global spin
         global LCDlines
         while True:
-            sleep(2) 
+            sleep(2)
             self.makeLCDLines()
             sendString = LCDlines[0]+';'+LCDlines[1]
             self.serial.write(sendString)
-
-#            LCDlines = []
-#            if spin == 0:
-#                spin=1
-#                spinchar='+'
-#            else:
-#                spin=0
-#                spinchar='X'
-#            print spinchar
-#            LCDlines.append(spinchar)
-#            LCDlines.append(spinchar)
-#            sendString = LCDlines[0]+';'+LCDlines[1]
-#            print LCDlines
-#            print sendString
-#            self.serial.write(sendString)
 
     def close(self):
         self.serial.close()
@@ -170,32 +155,55 @@ class NASDisplay(object):
         global spin
         LCDlines = []
         if spin == 0:
-                spin=1
-                spinchar='+'
+            spin = 1
+            spinchar = '+'
         else:
-                spin=0
-                spinchar='X'
+            spin = 0
+            spinchar = 'X'
         host_name = socket.gethostname()
         myIP = socket.gethostbyname(host_name + ".local")
-        #print myIP
+        # print myIP
         LCDlines.append(myIP)
         sensors.init()
-        #print sensors
+        # print sensors
         # mylist=sensors.iter_detected_chips()
-        #print mylist
+        # print mylist
+
+        temp = self.getTemperature()
+        templine = '%s Temp %.2fC' % (spinchar, temp)
+        LCDlines.append(templine)
+
+    def getTemperature(self):
         try:
             for chip in sensors.iter_detected_chips():
-                #print '%s at %s' % (chip, chip.adapter_name)
-                templine=''
-                #if chip.has_key('feature') == 1:
-		for feature in chip:
-                        if 'temp1' in feature.label:
-                            templine = '%s Temp %.2fC' % (spinchar,feature.get_value())
-                            #print 'Temp %.2fC' % (feature.get_value())
-                            #print ' %s: %.2f' % (feature.label, feature.get_value())
-                LCDlines.append(templine)
+                for feature in chip:
+                    label = feature.label.replace(' ', '-')
+                    value = None
+                    try:
+                        value = feature.get_value()
+                    except Exception:
+                        value = 0
+            if value is not None:
+                print '%s  %s: %.2f' % (chip, feature.label, value)
+                return value
+            else:
+                return 00.0
         finally:
             sensors.cleanup()
+
+        #tmptemp = 00.0
+       # try:
+        #    for chip in sensors.iter_detected_chips():
+            # print '%s at %s' % (chip, chip.adapter_name)
+            # if chip.has_key('feature') == 1:
+            # for feature in chip:
+            #   if 'temp1' in feature.label:
+            #      return tmptemp
+            # feature.get_value()
+            # print 'Temp %.2fC' % (feature.get_value())
+            # print ' %s: %.2f' % (feature.label, feature.get_value())
+        # finally:
+         #   sensors.cleanup()
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -303,7 +311,6 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
         default=False)
 
     args = parser.parse_args()
-
 
     while True:
         try:
