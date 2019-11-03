@@ -41,11 +41,11 @@ void loop() {
     //lcd.write(Serial.read());
 
     str = Serial.readStringUntil('\n');
-    Serial.println(str);
+    //Serial.println(str);
 
     String line1 = getValue(str, ';', 0);
     String line2 = getValue(str, ';', 1);
-    Serial.println(line1);
+    //Serial.println(line1);
     lcd.clear();
     //lcd.setCursor(0, 0);
     lcd.print(line1.c_str());

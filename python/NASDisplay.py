@@ -16,6 +16,7 @@ from time import sleep
 LCDlines = []
 receivedString = ''
 spin = 0
+selectCount=0
 
 codecs.register(lambda c: hexlify_codec.getregentry()
                 if c == 'hexlify' else None)
@@ -96,16 +97,6 @@ class NASDisplay(object):
         self.serial.close()
         sensors.cleanup()
 
-    def set_rx_encoding(self, encoding, errors='replace'):
-        """set encoding for received data"""
-        self.input_encoding = encoding
-        self.rx_decoder = codecs.getincrementaldecoder(encoding)(errors)
-
-    def set_tx_encoding(self, encoding, errors='replace'):
-        """set encoding for transmitted data"""
-        self.output_encoding = encoding
-        self.tx_encoder = codecs.getincrementalencoder(encoding)(errors)
-
     def reader(self):
         """loop and copy serial->console"""
         global receivedString
@@ -120,14 +111,18 @@ class NASDisplay(object):
 
                 if data is not '':
                     receivedString += data
-                    self.evaluateResponse(receivedString)
+                    print 'receivedString before: %s' % receivedString
+                    if self.evaluateResponse(receivedString) == 1:
+                        receivedString = ''
+                    print 'receivedString after: %s' % receivedString
+                      
 
         except serial.SerialException:
             self.alive = False
             raise       # XXX handle instead of re-raise?
 
     def evaluateResponse(self, message):
-        global receivedString
+
         global LCDlines
         # print 'evaluateResponse called \n'
         # print message
@@ -135,20 +130,30 @@ class NASDisplay(object):
         if 'UP' in message:
             self.makeLCDLines()
             print 'UP found\n'
-            receivedString = ''
-            sendString = LCDlines[0]+';'+LCDlines[1]
-            print LCDlines
-            print sendString
-            self.serial.write(sendString)
+            #sendString = LCDlines[0]+';'+LCDlines[1]
+            #print LCDlines
+            #print sendString
+            #self.serial.write(sendString)
+            return 1
 
         if 'DOWN' in message:
             print 'DOWN found\n'
-            receivedString = ''
+            return 1
 
         if 'SELECT' in message:
-            print 'SELECT found\n'
-            receivedString = ''
-            sys.exit(1)
+            global selectCount
+            print 'SELECT count=%d\n'% selectCount
+	    selectCount=selectCount+1
+            if selectCount==1:
+                sendString = 'SELECT to shutdown;DOWN to cancel'
+                print sendString
+                self.serial.write(sendString)
+            if selectCount==2:
+                sys.exit(1)
+            return 1
+
+        return 0
+
 
     def makeLCDLines(self):
         global LCDlines
@@ -191,21 +196,6 @@ class NASDisplay(object):
         finally:
             sensors.cleanup()
 
-        #tmptemp = 00.0
-       # try:
-        #    for chip in sensors.iter_detected_chips():
-            # print '%s at %s' % (chip, chip.adapter_name)
-            # if chip.has_key('feature') == 1:
-            # for feature in chip:
-            #   if 'temp1' in feature.label:
-            #      return tmptemp
-            # feature.get_value()
-            # print 'Temp %.2fC' % (feature.get_value())
-            # print ' %s: %.2f' % (feature.label, feature.get_value())
-        # finally:
-         #   sensors.cleanup()
-
-
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # default args can be used to override when calling main() from an other script
 # e.g to create a nasDisplay-my-device.py
@@ -245,12 +235,6 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
         '--rtscts',
         action='store_true',
         help='enable RTS/CTS flow control (default off)',
-        default=False)
-
-    group.add_argument(
-        '--xonxoff',
-        action='store_true',
-        help='enable software flow control (default off)',
         default=False)
 
     group.add_argument(
@@ -319,7 +303,6 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
                 args.baudrate,
                 parity=args.parity,
                 rtscts=args.rtscts,
-                xonxoff=args.xonxoff,
                 do_not_open=True)
 
             if not hasattr(serial_instance, 'cancel_read'):
@@ -357,8 +340,6 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
         serial_instance,
         eol=args.eol.lower())
     nasDisplay.raw = args.raw
-    nasDisplay.set_rx_encoding(args.serial_port_encoding)
-    nasDisplay.set_tx_encoding(args.serial_port_encoding)
 
     if not args.quiet:
         sys.stderr.write('--- NASDisplay on {p.name}  {p.baudrate},{p.bytesize},{p.parity},{p.stopbits} ---\n'.format(
