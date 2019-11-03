@@ -3,8 +3,8 @@
 from __future__ import absolute_import
 import fcntl
 import atexit
-import codecs
 import sys
+import os
 import threading
 import socket
 import serial
@@ -18,16 +18,6 @@ receivedString = ''
 spin = 0
 selectCount=0
 
-codecs.register(lambda c: hexlify_codec.getregentry()
-                if c == 'hexlify' else None)
-
-try:
-    raw_input
-except NameError:
-    # pylint: disable=redefined-builtin,invalid-name
-    raw_input = input   # in python3 it's "raw"
-    unichr = chr
-
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 class NASDisplay(object):
@@ -37,15 +27,10 @@ class NASDisplay(object):
 
     def __init__(self, serial_instance,  eol='crlf'):
         self.serial = serial_instance
-        self.raw = False
-        self.input_encoding = 'UTF-8'
-        self.output_encoding = 'UTF-8'
         self.eol = eol
         self.alive = None
         self._reader_alive = None
         self.receiver_thread = None
-        self.rx_decoder = None
-        self.tx_decoder = None
         sensors.init()
 
     def _start_reader(self):
@@ -89,9 +74,10 @@ class NASDisplay(object):
         global LCDlines
         while True:
             sleep(2)
-            self.makeLCDLines()
-            sendString = LCDlines[0]+';'+LCDlines[1]
-            self.serial.write(sendString)
+            if selectCount==0:
+                self.makeLCDLines()
+                sendString = LCDlines[0]+';'+LCDlines[1]
+                self.serial.write(sendString)
 
     def close(self):
         self.serial.close()
@@ -111,10 +97,10 @@ class NASDisplay(object):
 
                 if data is not '':
                     receivedString += data
-                    print 'receivedString before: %s' % receivedString
+                    #print 'receivedString before: %s' % receivedString
                     if self.evaluateResponse(receivedString) == 1:
                         receivedString = ''
-                    print 'receivedString after: %s' % receivedString
+                    #print 'receivedString after: %s' % receivedString
                       
 
         except serial.SerialException:
@@ -122,34 +108,39 @@ class NASDisplay(object):
             raise       # XXX handle instead of re-raise?
 
     def evaluateResponse(self, message):
-
         global LCDlines
+        global selectCount
         # print 'evaluateResponse called \n'
         # print message
 
         if 'UP' in message:
-            self.makeLCDLines()
             print 'UP found\n'
-            #sendString = LCDlines[0]+';'+LCDlines[1]
-            #print LCDlines
-            #print sendString
-            #self.serial.write(sendString)
+            if selectCount==1:
+                sys.exit(1)
             return 1
 
         if 'DOWN' in message:
             print 'DOWN found\n'
+            if selectCount==1:
+                sendString = 'shutdown;cancelled'
+                #print sendString
+                self.serial.write(sendString)
+                selectCount=0
             return 1
 
         if 'SELECT' in message:
-            global selectCount
             print 'SELECT count=%d\n'% selectCount
 	    selectCount=selectCount+1
             if selectCount==1:
                 sendString = 'SELECT to shutdown;DOWN to cancel'
-                print sendString
                 self.serial.write(sendString)
             if selectCount==2:
-                sys.exit(1)
+                sendString = 'SELECT to shutdown;DOWN to cancel'
+                self.serial.write(sendString)
+                #os.system('shutdown -h now')
+                #os.system('shutdown /s /t 1');
+                #os.system('shutdown -s -t 0') 
+                os.system('systemctl poweroff') 
             return 1
 
         return 0
@@ -263,24 +254,11 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
         default=False)
 
     group.add_argument(
-        '--encoding',
-        dest='serial_port_encoding',
-        metavar='CODEC',
-        help='set the encoding for the serial port (e.g. hexlify, Latin1, UTF-8), default: %(default)s',
-        default='UTF-8')
-
-    group.add_argument(
         '--eol',
         choices=['CR', 'LF', 'CRLF'],
         type=lambda c: c.upper(),
         help='end of line mode',
         default='CRLF')
-
-    group.add_argument(
-        '--raw',
-        action='store_true',
-        help='Do no apply any encodings/transformations',
-        default=False)
 
     group.add_argument(
         '-q', '--quiet',
@@ -339,7 +317,6 @@ def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, d
     nasDisplay = NASDisplay(
         serial_instance,
         eol=args.eol.lower())
-    nasDisplay.raw = args.raw
 
     if not args.quiet:
         sys.stderr.write('--- NASDisplay on {p.name}  {p.baudrate},{p.bytesize},{p.parity},{p.stopbits} ---\n'.format(
