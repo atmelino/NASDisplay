@@ -1,14 +1,14 @@
 [Unit]
-Description=NAS Display application
+Description=shutdown by python test
 Documentation=https://atmelino.github.io/NASDisplay/
 After=network.target
 
 [Service]
 Type=simple
-User=nasuser
-WorkingDirectory=/home/nasuser/github/NASDisplay/develop/shutDownTest
-ExecStart=/usr/bin/python /home/nasuser/github/NASDisplay/python/develop/shutDownTest/shutDownTest.py
-Restart=on-failure
+User=root
+WorkingDirectory=/media/data/github/NASDisplay/python/develop/shutDownTest
+ExecStart=/usr/bin/python /media/data/github/NASDisplay/python/develop/shutDownTest/shutDownTest.py
+Restart=no
 
 [Install]
 WantedBy=multi-user.target
