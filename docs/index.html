@@ -1,50 +1,69 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
 <html lang="en">
-
-<head>
-  <meta http-equiv="content-type" content="text/html; charset=UTF-8">
-  <title>MPPT</title>
-  <link rel="stylesheet" href="MPPT.css">
-</head>
-
-<body>
-  <h1>Arduino Based NAS Display</h1>
-  on server: <code>pip install pyserial</code> <code>pip install
-      PySensors</code> Permission denied: '/dev/ttyACM0'<br>
-  <code>sudo usermod -a -G dialout [your_username]</code> log out and
-  log back in<br>
-  actually, only worked after reboot<br>
-  modemmanager causes problems by probing serial ports<br>
-  remove modemmanager:<br>
-  <br>
-  <code>sudo apt-get purge modemmanager</code>
-  <br>
-  <a
-    href="https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot">https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot</a><br>
-  <br>
-  <h2> Autostart Display script at Boot</h2>
-  add the NASDisplay software as a service using systemd.<br>
-  add file NASDisplay.service to /etc/systemd/system.<br>
-  Start and stop:<br>
-  <code>sudo systemctl start NASDisplay.service</code><br>
-  <code>sudo systemctl stop NASDisplay.service</code><br>
-  check status:<br>
-  <code>sudo systemctl status NASDisplay.service</code><br>
-  during development<br>
-  <code>sudo systemctl daemon-reload</code><br>
-  <code>sudo systemctl restart NASDisplay.service</code><br>
-  To start automatically at boot:<br>
-  <code>sudo systemctl enable NASDisplay.service</code><br>
-  To list all services:<br>
-  <code>sudo systemctl list-unit-files</code><br>
-  or<br>
-  <code>sudo systemctl list-unit-files | grep NASDisplay.service </code><br>
-  To see output from service:<br>
-  <code>journalctl -u NASDisplay.service -b</code><br>
-  To shorten journal file:<br>
-  <code>sudo journalctl --rotate</code><br>
-  <code>sudo journalctl --vacuum-time=1s</code><br>
-  <br>
-</body>
-
+  <head>
+    <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+    <title>MPPT</title>
+    <link rel="stylesheet" href="MPPT.css">
+  </head>
+  <body>
+    <h1>Arduino Based NAS Display</h1>
+    on server:<br>
+    &nbsp;<code>pip install pyserial</code> <code>pip install PySensors</code>
+    <br>
+    Permission denied: '/dev/ttyACM0'<br>
+    <code>sudo usermod -a -G dialout [your_username]</code> log out and
+    log back in<br>
+    actually, only worked after reboot<br>
+    modemmanager causes problems by probing serial ports<br>
+    remove modemmanager:<br>
+    <br>
+    <code>sudo apt-get purge modemmanager</code> <br>
+    <a
+href="https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot">https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot</a><br>
+    <br>
+    <br>
+    <h2> Run Service as root</h2>
+    Since we want to be able to shut down the computer with a python
+    script, we need to run the service as root.<br>
+    <br>
+    In the NASDisplay.service file, the lines will be<br>
+    <br>
+    <code>[Service]<br>
+      User=root<br>
+    </code>&nbsp;<br>
+    The serial and sensor packages need to be installed such that they
+    are available to root.<br>
+    <br>
+    <code>sudo su<br>
+      cd ~<br>
+      umask 022<br>
+      pip install pyserial<br>
+      pip install PySensors</code> <br>
+    <a
+href="https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux">https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux</a><br>
+    <br>
+    <h2> Autostart Display script at Boot</h2>
+    add the NASDisplay software as a service using systemd.<br>
+    add file NASDisplay.service to /etc/systemd/system.<br>
+    Start and stop:<br>
+    <code>sudo systemctl start NASDisplay.service</code><br>
+    <code>sudo systemctl stop NASDisplay.service</code><br>
+    check status:<br>
+    <code>sudo systemctl status NASDisplay.service</code><br>
+    during development<br>
+    <code>sudo systemctl daemon-reload</code><br>
+    <code>sudo systemctl restart NASDisplay.service</code><br>
+    To start automatically at boot:<br>
+    <code>sudo systemctl enable NASDisplay.service</code><br>
+    To list all services:<br>
+    <code>sudo systemctl list-unit-files</code><br>
+    or<br>
+    <code>sudo systemctl list-unit-files | grep NASDisplay.service </code><br>
+    To see output from service:<br>
+    <code>journalctl -u NASDisplay.service -b</code><br>
+    To shorten journal file:<br>
+    <code>sudo journalctl --rotate</code><br>
+    <code>sudo journalctl --vacuum-time=1s</code><br>
+    <br>
+  </body>
 </html>
