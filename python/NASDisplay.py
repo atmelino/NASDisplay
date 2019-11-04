@@ -137,10 +137,10 @@ class NASDisplay(object):
             if selectCount==2:
                 sendString = 'SELECT to shutdown;DOWN to cancel'
                 self.serial.write(sendString)
-                #os.system('shutdown -h now')
+                os.system('shutdown -h now')
                 #os.system('shutdown /s /t 1');
                 #os.system('shutdown -s -t 0') 
-                os.system('systemctl poweroff') 
+                #os.system('systemctl poweroff') 
             return 1
 
         return 0

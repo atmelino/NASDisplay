@@ -5,7 +5,7 @@ After=network.target
 
 [Service]
 Type=simple
-User=nasuser
+User=root
 WorkingDirectory=/home/nasuser/github/NASDisplay
 ExecStart=/usr/bin/python /home/nasuser/github/NASDisplay/python/NASDisplay.py
 Restart=on-failure
