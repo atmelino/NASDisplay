@@ -19,13 +19,9 @@ timerCount = 0
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 class ShutDownTest(object):
-    """
-    Show status on NAS and interpret button press
-    """
-
-    def __init__(self, serial_instance,  eol='crlf'):
+    
+    def __init__(self, serial_instance):
         self.serial = serial_instance
-        self.eol = eol
         self.alive = None
         self._reader_alive = None
         self.receiver_thread = None
@@ -68,8 +64,6 @@ class ShutDownTest(object):
             self.receiver_thread.join()
 
     def myTimer(self):
-        global spin
-        global LCDlines
         global timerCount
         while True:
             sleep(2)
@@ -77,8 +71,9 @@ class ShutDownTest(object):
             print 'timerCount %d' % timerCount
             if timerCount == 3:
                 print 'Ive had enough'
+                self._stop_reader()
                 #self.close()
-                #sys.exit(1)
+                sys.exit(1)
                 #print 'called sys.exit'
 
     def close(self):
@@ -96,6 +91,7 @@ class ShutDownTest(object):
 
                 # read all that is there or wait for one byte
                 data = self.serial.read(self.serial.in_waiting or 1)
+                print 'after read command \n'
 
                 if data is not '':
                     receivedString += data
@@ -122,143 +118,40 @@ class ShutDownTest(object):
 def main(default_port='/dev/ttyACM0', default_baudrate=9600, default_rts=None, default_dtr=None):
     """Command line tool, entry point"""
 
-    import argparse
-
-    parser = argparse.ArgumentParser(
-        description='ShutDownTest - A simple terminal program for the serial port.')
-
-    parser.add_argument(
-        'port',
-        nargs='?',
-        help='serial port name ("-" to show port list)',
-        default=default_port)
-
-    parser.add_argument(
-        'baudrate',
-        nargs='?',
-        type=int,
-        help='set baud rate, default: %(default)s',
-        default=default_baudrate)
-
-    group = parser.add_argument_group('port settings')
-
-    group.add_argument(
-        '--parity',
-        choices=['N', 'E', 'O', 'S', 'M'],
-        type=lambda c: c.upper(),
-        help='set parity, one of {N E O S M}, default: N',
-        default='N')
-
-    group.add_argument(
-        '--rtscts',
-        action='store_true',
-        help='enable RTS/CTS flow control (default off)',
-        default=False)
-
-    group.add_argument(
-        '--rts',
-        type=int,
-        help='set initial RTS line state (possible values: 0, 1)',
-        default=default_rts)
-
-    group.add_argument(
-        '--dtr',
-        type=int,
-        help='set initial DTR line state (possible values: 0, 1)',
-        default=default_dtr)
-
-    group.add_argument(
-        '--non-exclusive',
-        dest='exclusive',
-        action='store_false',
-        help='disable locking for native ports',
-        default=True)
-
-    group.add_argument(
-        '--ask',
-        action='store_true',
-        help='ask again for port when open fails',
-        default=False)
-
-    group.add_argument(
-        '--eol',
-        choices=['CR', 'LF', 'CRLF'],
-        type=lambda c: c.upper(),
-        help='end of line mode',
-        default='CRLF')
-
-    group.add_argument(
-        '-q', '--quiet',
-        action='store_true',
-        help='suppress non-error messages',
-        default=False)
-
-    group.add_argument(
-        '--develop',
-        action='store_true',
-        help='show Python traceback on error',
-        default=False)
-
-    args = parser.parse_args()
-
     while True:
         try:
             serial_instance = serial.serial_for_url(
-                args.port,
-                args.baudrate,
-                parity=args.parity,
-                rtscts=args.rtscts,
+                '/dev/ttyACM0',
+                9600,
                 do_not_open=True)
 
             if not hasattr(serial_instance, 'cancel_read'):
                 # enable timeout for alive flag polling if cancel_read is not available
                 serial_instance.timeout = 1
 
-            if args.dtr is not None:
-                if not args.quiet:
-                    sys.stderr.write(
-                        '--- forcing DTR {}\n'.format('active' if args.dtr else 'inactive'))
-                serial_instance.dtr = args.dtr
-            if args.rts is not None:
-                if not args.quiet:
-                    sys.stderr.write(
-                        '--- forcing RTS {}\n'.format('active' if args.rts else 'inactive'))
-                serial_instance.rts = args.rts
-
             if isinstance(serial_instance, serial.Serial):
-                serial_instance.exclusive = args.exclusive
+                serial_instance.exclusive = '--non-exclusive'
 
             serial_instance.open()
         except serial.SerialException as e:
             sys.stderr.write(
-                'could not open port {!r}: {}\n'.format(args.port, e))
-            if args.develop:
-                raise
-            if not args.ask:
-                sys.exit(1)
-            else:
-                args.port = '-'
+                'could not open port {!r}: {}\n'.format('/dev/ttyACM0', e))
         else:
             break
 
     shutDownTest = ShutDownTest(
-        serial_instance,
-        eol=args.eol.lower())
+        serial_instance)
 
-    if not args.quiet:
-        sys.stderr.write('--- ShutDownTest create /tmp/sdyes to initiate shutdown---\n'.format(
-            p=shutDownTest.serial))
+    sys.stderr.write('--- ShutDownTest create /tmp/sdyes to initiate shutdown---\n')
 
     shutDownTest.start()
     try:
         shutDownTest.join(True)
     except KeyboardInterrupt:
         pass
-    if not args.quiet:
-        sys.stderr.write('\n--- exit ---\n')
+
     shutDownTest.join()
     shutDownTest.close()
-
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 if __name__ == '__main__':
