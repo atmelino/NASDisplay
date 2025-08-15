@@ -11,13 +11,19 @@
   <h1>Arduino Based NAS Display</h1>
 
 
-  Hardware Components:<br>
+  <h3>Hardware Components</h3>
   - Arduino UNO<br>
   - LCD shield<br>
   - USB B to A cable<br>
 
 
+  <h3>Arduino Installation</h3>
 
+  Upload the NASDisplay.ino file to the Arduino.<br>
+  The version on github works with a GPIO pin based LCD display (not the I2C version):
+  <code>
+    LiquidCrystal lcd(8, 9, 4, 5, 6, 7); // select the pins used on the LCD panel
+  </code>
 
 
 
