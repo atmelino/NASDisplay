@@ -18,8 +18,7 @@
 
   <img src="LCD_shield.png" alt="LCD_shield" height="250">
 
-  <a
-    href="https://wiki.dfrobot.com/LCD_KeyPad_Shield_For_Arduino_SKU__DFR0009">
+  <a href="https://wiki.dfrobot.com/LCD_KeyPad_Shield_For_Arduino_SKU__DFR0009">
     https://wiki.dfrobot.com/LCD_KeyPad_Shield_For_Arduino_SKU__DFR0009</a><br>
   <br>
 
@@ -36,8 +35,22 @@
 
 
   <h3>Server Software Installation</h3>
-  on server:<br>
-  &nbsp;<code>pip install pyserial</code> <code>pip install PySensors</code>
+  On server:<br>
+
+  Download python script onto your server<br>
+  <code>cd ~</code>
+  <code>mkdir github</code>
+  <code>cd github</code>
+  <code>git clone https://github.com/atmelino/NASDisplay.git</code>
+  <br>
+
+
+  Install required python libraries<br>
+  <code>sudo apt install python3-pip</code>
+  <code>sudo apt install pipx</code>
+  <code>pipx install pyserial</code>
+  <code>sudo apt-get install lm-sensors</code>
+  <code>pipx install PySensors</code>
   <br>
   Permission denied: '/dev/ttyACM0'<br>
   <code>sudo usermod -a -G dialout [your_username]</code> log out and
