@@ -32,7 +32,6 @@
   </code>
 
 
-
   Is the Arduino connected?<br>
   <code>
   lsusb
@@ -41,6 +40,26 @@
   <code>
    Bus 001 Device 002: ID 2341:0001 Arduino SA Uno (CDC ACM)
   </code>
+  <br>
+  Permission denied: '/dev/ttyACM0'<br>
+  <code>
+    sudo usermod -a -G dialout [your_username]
+  </code>
+  log out and log back in<br>
+
+  Test communication with Arduino<br>
+  <code>
+  sudo apt-get install minicom
+  </code>
+
+  <code>
+  minicom -D /dev/ttyACM0
+  </code>
+
+  Press CTRL-A Z<br>
+  Press P<br>
+  Press C for 9600 baud<br>
+  <br>
 
 
 
@@ -73,9 +92,6 @@
   <br>
 
 
-  Permission denied: '/dev/ttyACM0'<br>
-  <code>sudo usermod -a -G dialout [your_username]</code> log out and
-  log back in<br>
   actually, only worked after reboot<br>
   modemmanager causes problems by probing serial ports<br>
   remove modemmanager:<br>

@@ -8,7 +8,7 @@ import os
 import threading
 import socket
 import serial
-import sensors
+# import sensors
 from serial.tools.list_ports import comports
 from serial.tools import hexlify_codec
 from time import sleep
@@ -31,7 +31,7 @@ class NASDisplay(object):
         self.alive = None
         self._reader_alive = None
         self.receiver_thread = None
-        sensors.init()
+        # sensors.init()
 
     def _start_reader(self):
         """Start reader thread"""
@@ -81,7 +81,7 @@ class NASDisplay(object):
 
     def close(self):
         self.serial.close()
-        sensors.cleanup()
+        # sensors.cleanup()
 
     def reader(self):
         """loop and copy serial->console"""
