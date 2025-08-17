@@ -46,6 +46,7 @@
     sudo usermod -a -G dialout [your_username]
   </code>
   log out and log back in<br>
+  actually, only worked after reboot<br>
   <br>
   Test communication with Arduino<br>
   <code>
@@ -92,14 +93,6 @@
   <br>
 
 
-  actually, only worked after reboot<br>
-  modemmanager causes problems by probing serial ports<br>
-  remove modemmanager:<br>
-  <br>
-  <code>sudo apt-get purge modemmanager</code> <br>
-  <a
-    href="https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot">https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot</a><br>
-  <br>
   <br>
   <h2> Run Service as root</h2>
   Since we want to be able to shut down the computer with a python
@@ -150,6 +143,13 @@
   <code>pip install pyserial</code>
   <code>pip install PySensors</code>
 
+  modemmanager causes problems by probing serial ports<br>
+  remove modemmanager:<br>
+  <br>
+  <code>sudo apt-get purge modemmanager</code> <br>
+  <a
+    href="https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot">https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot</a><br>
+  <br>
 
 
 
