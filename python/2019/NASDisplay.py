@@ -87,7 +87,7 @@ class NASDisplay(object):
         """loop and copy serial->console"""
         global receivedString
 
-        print('reader started \n')
+        print 'reader started \n'
 
         try:
             while self.alive and self._reader_alive:
@@ -114,13 +114,13 @@ class NASDisplay(object):
         # print message
 
         if 'UP' in message:
-            print('UP found\n')
+            print 'UP found\n'
             if selectCount==1:
                 sys.exit(1)
             return 1
 
         if 'DOWN' in message:
-            print('DOWN found\n')
+            print 'DOWN found\n'
             if selectCount==1:
                 sendString = 'shutdown;cancelled'
                 #print sendString
@@ -129,8 +129,8 @@ class NASDisplay(object):
             return 1
 
         if 'SELECT' in message:
-            print('SELECT count=%d\n'% selectCount)
-            selectCount=selectCount+1
+            print 'SELECT count=%d\n'% selectCount
+	    selectCount=selectCount+1
             if selectCount==1:
                 sendString = 'SELECT to shutdown;DOWN to cancel'
                 self.serial.write(sendString)

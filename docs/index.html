@@ -14,14 +14,13 @@
   <h3>Hardware Components</h3>
   - Arduino UNO<br>
   - LCD shield<br>
-  - USB B to A cable<br>
+  - USB B to A cable or USB B to motherboard USB 2 connector<br>
 
   <img src="LCD_shield.png" alt="LCD_shield" height="250">
 
   <a href="https://wiki.dfrobot.com/LCD_KeyPad_Shield_For_Arduino_SKU__DFR0009">
     https://wiki.dfrobot.com/LCD_KeyPad_Shield_For_Arduino_SKU__DFR0009</a><br>
   <br>
-
 
 
   <h3>Arduino Installation</h3>
@@ -35,7 +34,16 @@
 
 
   <h3>Server Software Installation</h3>
-  On server:<br>
+
+  <h4>Software Versions</h4>
+  The 2019 version of the python software was using the PySensors packages.<br>
+  This package no longer works with modern python versions.<br>
+  <br>
+  The 2025 version of the python software uses the psutil package which also provides CPU temperature.<br>
+
+
+
+  <h4>Development Software Installation</h4>
 
   Download python script onto your server<br>
   <code>cd ~</code>
@@ -44,14 +52,16 @@
   <code>git clone https://github.com/atmelino/NASDisplay.git</code>
   <br>
 
+  Install lm-sensors to get access to hardware sensors
+  <code>sudo apt-get install lm-sensors</code>
+
 
   Install required python libraries<br>
-  <code>sudo apt install python3-pip</code>
-  <code>sudo apt install pipx</code>
-  <code>pipx install pyserial</code>
-  <code>sudo apt-get install lm-sensors</code>
-  <code>pipx install PySensors</code>
+  <code>pip install pyserial</code>
+  <code>pip install psutil</code>
   <br>
+
+
   Permission denied: '/dev/ttyACM0'<br>
   <code>sudo usermod -a -G dialout [your_username]</code> log out and
   log back in<br>
@@ -80,7 +90,7 @@
       cd ~<br>
       umask 022<br>
       pip install pyserial<br>
-      pip install PySensors</code> <br>
+      pip install psutil</code> <br>
   <a
     href="https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux">https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux</a><br>
   <br>
@@ -107,6 +117,15 @@
   <code>sudo journalctl --rotate</code><br>
   <code>sudo journalctl --vacuum-time=1s</code><br>
   <br>
+
+  ----------------------------------------------<br>
+  old<br>
+  <code>pip install pyserial</code>
+  <code>pip install PySensors</code>
+
+
+
+
 </body>
 
 </html>
