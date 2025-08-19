@@ -22,15 +22,28 @@ int read_LCD_buttons() {              // read the buttons
   //  Serial.print(adc_key_in);
   //  Serial.print(" result=");
   //  Serial.println(result);
+  lcd.setCursor( 14,0);            // set the LCD cursor   position
+  lcd.print(result);
+
   return result;
 }
+
+int LCD_print(String line1, String line2) 
+{                                   // print on LCD 
+  lcd.clear();
+  //lcd.setCursor(0, 0);
+  lcd.print(line1.c_str());
+  lcd.setCursor(0, 1);            // set the LCD cursor   position
+  lcd.print(line2.c_str());
+}
+
 
 void setup() {
   Serial.begin(9600);
 
   lcd.begin(16, 2);               // start the library
   lcd.setCursor(0, 0);            // set the LCD cursor   position
-  lcd.print("Push the buttons");  // print a simple message on the LCD
+  lcd.print("Push a button:");  // print a simple message on the LCD
 }
 
 void loop() {

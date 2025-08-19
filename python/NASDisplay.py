@@ -99,10 +99,13 @@ class NASDisplay(object):
             while self.alive and self._reader_alive:
 
                 # read all that is there or wait for one byte
-                data = str(self.serial.read(self.serial.in_waiting or 1))
+                data = self.serial.read(self.serial.in_waiting or 1)
                 print(data)
                 if data is not '':
-                    receivedString += str(data)
+                    # string_data = byte_data.decode('utf-8')
+
+                    receivedString += data.decode('utf-8')
+                    # receivedString += str(data)
                     print('receivedString before: %s' % receivedString)
                     if self.evaluateResponse(receivedString) == 1:
                         receivedString = ''
@@ -130,7 +133,7 @@ class NASDisplay(object):
             if selectCount==1:
                 sendString = 'shutdown;cancelled'
                 #print sendString
-                self.serial.write(sendString)
+                self.serial.write(sendString.encode('utf-8'))
                 selectCount=0
             return 1
 
@@ -139,10 +142,10 @@ class NASDisplay(object):
             selectCount=selectCount+1
             if selectCount==1:
                 sendString = 'SELECT to shutdown;DOWN to cancel'
-                self.serial.write(sendString)
+                self.serial.write(sendString.encode('utf-8'))
             if selectCount==2:
                 sendString = 'SELECT to shutdown;DOWN to cancel'
-                self.serial.write(sendString)
+                self.serial.write(sendString.encode('utf-8'))
                 os.system('shutdown -h now')
                 #os.system('shutdown /s /t 1');
                 #os.system('shutdown -s -t 0') 
@@ -166,13 +169,7 @@ class NASDisplay(object):
         myIP = socket.gethostbyname(host_name + ".local")
         # print myIP
         LCDlines.append(myIP)
-        # sensors.init()
-        # print sensors
-        # mylist=sensors.iter_detected_chips()
-        # print mylist
 
-
-        # temp = self.getTemperature()
         temp = self.get_cpu_temperature()
         templine = '%s Temp %.2fC' % (spinchar, temp)
         LCDlines.append(templine)
@@ -200,11 +197,6 @@ class NASDisplay(object):
         temperatures = psutil.sensors_temperatures()
         cpu_temperatures = temperatures['coretemp'][0]  # Assuming coretemp is the sensor name
         return cpu_temperatures.current
-
-
-
-
-
 
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
