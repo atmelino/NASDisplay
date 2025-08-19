@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-#
+# uses parts of https://github.com/pyserial/pyserial/blob/master/serial/tools/miniterm.py
 
 from __future__ import absolute_import
 

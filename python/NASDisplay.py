@@ -1,3 +1,6 @@
+# 2025 version - replaced sensors with psutil
+# uses parts of https://github.com/pyserial/pyserial/blob/master/serial/tools/miniterm.py
+
 #!/usr/bin/env python
 
 from __future__ import absolute_import
@@ -8,13 +11,13 @@ import os
 import threading
 import socket
 import serial
-# import sensors
 from serial.tools.list_ports import comports
 from serial.tools import hexlify_codec
 from time import sleep
+import psutil
 
 LCDlines = []
-receivedString = ''
+receivedString = ' '
 spin = 0
 selectCount=0
 
@@ -31,7 +34,6 @@ class NASDisplay(object):
         self.alive = None
         self._reader_alive = None
         self.receiver_thread = None
-        # sensors.init()
 
     def _start_reader(self):
         """Start reader thread"""
@@ -74,14 +76,18 @@ class NASDisplay(object):
         global LCDlines
         while True:
             sleep(2)
+            # temperature = self.get_cpu_temperature()
+            # print(f"CPU Temperature: {temperature} °C")
+
             if selectCount==0:
                 self.makeLCDLines()
                 sendString = LCDlines[0]+';'+LCDlines[1]
-                self.serial.write(sendString)
+                print(sendString)
+                sendString2=sendString.encode('utf-8')
+                self.serial.write(sendString2)
 
     def close(self):
         self.serial.close()
-        # sensors.cleanup()
 
     def reader(self):
         """loop and copy serial->console"""
@@ -93,11 +99,11 @@ class NASDisplay(object):
             while self.alive and self._reader_alive:
 
                 # read all that is there or wait for one byte
-                data = self.serial.read(self.serial.in_waiting or 1)
-
+                data = str(self.serial.read(self.serial.in_waiting or 1))
+                print(data)
                 if data is not '':
-                    receivedString += data
-                    #print 'receivedString before: %s' % receivedString
+                    receivedString += str(data)
+                    print('receivedString before: %s' % receivedString)
                     if self.evaluateResponse(receivedString) == 1:
                         receivedString = ''
                     #print 'receivedString after: %s' % receivedString
@@ -160,32 +166,46 @@ class NASDisplay(object):
         myIP = socket.gethostbyname(host_name + ".local")
         # print myIP
         LCDlines.append(myIP)
-        sensors.init()
+        # sensors.init()
         # print sensors
         # mylist=sensors.iter_detected_chips()
         # print mylist
 
-        temp = self.getTemperature()
+
+        # temp = self.getTemperature()
+        temp = self.get_cpu_temperature()
         templine = '%s Temp %.2fC' % (spinchar, temp)
         LCDlines.append(templine)
 
-    def getTemperature(self):
-        try:
-            for chip in sensors.iter_detected_chips():
-                for feature in chip:
-                    label = feature.label.replace(' ', '-')
-                    value = None
-                    try:
-                        value = feature.get_value()
-                    except Exception:
-                        value = 0
-            if value is not None:
-                #print '%s  %s: %.2f' % (chip, feature.label, value)
-                return value
-            else:
-                return 00.0
-        finally:
-            sensors.cleanup()
+    # def getTemperature(self):
+    #     try:
+    #         for chip in sensors.iter_detected_chips():
+    #             for feature in chip:
+    #                 label = feature.label.replace(' ', '-')
+    #                 value = None
+    #                 try:
+    #                     value = feature.get_value()
+    #                 except Exception:
+    #                     value = 0
+    #         if value is not None:
+    #             #print '%s  %s: %.2f' % (chip, feature.label, value)
+    #             return value
+    #         else:
+    #             return 00.0
+    #     finally:
+    #         print("finally block")
+    #         # sensors.cleanup()
+
+    def get_cpu_temperature(self):
+        temperatures = psutil.sensors_temperatures()
+        cpu_temperatures = temperatures['coretemp'][0]  # Assuming coretemp is the sensor name
+        return cpu_temperatures.current
+
+
+
+
+
+
 
 # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 # default args can be used to override when calling main() from an other script
