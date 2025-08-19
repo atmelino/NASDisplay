@@ -10,6 +10,8 @@
 <body>
   <h1>Arduino Based NAS Display</h1>
 
+  <a href="https://github.com/atmelino/NASDisplay">https://github.com/atmelino/NASDisplay</a><br>
+  <br>
 
   <h3>Hardware Components</h3>
   - Arduino UNO<br>
@@ -100,9 +102,20 @@
   <br>
   In the NASDisplay.service file, the lines will be<br>
   <br>
-  <code>[Service]<br>
-      User=root<br>
-    </code>&nbsp;<br>
+  <code>
+    [Service]<br>
+    User=root<br>
+  </code>
+  <br>
+  Copy the NASDisplay.service file to /etc/systemd/system/:
+  <code>/etc/systemd/system/NASDisplay.service</code>
+
+  <a href="https://github.com/atmelino/NASDisplay/blob/master/systemd/NASDisplay.service">
+    https://github.com/atmelino/NASDisplay/blob/master/systemd/NASDisplay.service
+  </a><br>
+  Modify as needed (for example, user name and path of python script)<br>
+  <br>
+
   The serial and sensor packages need to be installed such that they
   are available to root.<br>
   <br>
@@ -151,6 +164,7 @@
     href="https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot">https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot</a><br>
   <br>
 
+  <a href=""></a><br>
 
 
 </body>
