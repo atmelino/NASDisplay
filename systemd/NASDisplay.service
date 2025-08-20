@@ -7,7 +7,7 @@ After=network.target
 Type=simple
 User=root
 WorkingDirectory=/home/nasuser/github/NASDisplay
-ExecStart=/usr/bin/python /home/nasuser/github/NASDisplay/python/NASDisplay.py
+ExecStart=/usr/bin/python3 /home/nasuser/github/NASDisplay/python/NASDisplay.py
 Restart=on-failure
 
 [Install]
