@@ -107,7 +107,9 @@
   <code>sudo -i</code>
 
   If we try to run the script now, we will get an error that the psutil library is missing.<br>
-  That is because we installed it as a non-admin user, and the root user can't see it.<br>
+  This is because we installed it as a non-admin user, and the root user can't see it.<br>
+  <code>ModuleNotFoundError: No module named 'psutil'</code>
+
   <br>
   The serial and sensor packages need to be installed such that they
   are available to root.<br>
@@ -118,13 +120,13 @@
       apt-get install python3-psutil
       </code>
   <br>
-  <a href="https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux">
-    https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux</a><br>
-  <br>
 
 
   <h4> Autostart Display script at Boot</h4>
-  Since we want the script to start automatically when the server starts, we will use the systemd mechanism.<br>
+  We want the script to start automatically when the server starts,
+  and we will use the systemd mechanism
+  by adding the NASDisplay software as a systemd service.<br>
+  <br>
 
   In the NASDisplay.service file, the lines will be<br>
   <br>
@@ -139,23 +141,20 @@
   <a href="https://github.com/atmelino/NASDisplay/blob/master/systemd/NASDisplay.service">
     https://github.com/atmelino/NASDisplay/blob/master/systemd/NASDisplay.service
   </a><br>
+  <br>
   Modify as needed (for example, user name and path of python script)<br>
   <br>
 
-  add the NASDisplay software as a service using systemd.<br>
-  add file NASDisplay.service to /etc/systemd/system.<br>
   Start the service:<br>
   <code>sudo systemctl start NASDisplay.service</code><br>
   Check the status:<br>
   <code>sudo systemctl status NASDisplay.service</code><br>
-  If there is an error, check the journal:<br>
-  To see output from service:<br>
+  If there is an error, check the journal to see the output from the service:<br>
   <code>journalctl -u NASDisplay.service -b</code><br>
 
   If there was an error, it might be that the psutil library is missing.<br>
 
   In that case, go back to the terminal and try to run the script as root.<br>
-  <code>ModuleNotFoundError: No module named 'psutil'</code>
   <br>
 
 
@@ -202,6 +201,10 @@
   <code>sudo apt-get purge modemmanager</code> <br>
   <a
     href="https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot">https://askubuntu.com/questions/216114/how-can-i-remove-modem-manager-from-boot</a><br>
+  <br>
+
+  <a href="https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux">
+    https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux</a><br>
   <br>
 
   <a href=""></a><br>
