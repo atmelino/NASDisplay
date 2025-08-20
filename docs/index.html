@@ -13,10 +13,11 @@
   <a href="https://github.com/atmelino/NASDisplay">https://github.com/atmelino/NASDisplay</a><br>
   <br>
 
-  <h3>Hardware Components</h3>
+  <h2>Hardware Components</h2>
   - Arduino UNO<br>
   - LCD shield<br>
   - USB B to A cable or USB B to motherboard USB 2 connector<br>
+  - A server with a free USB-2 connector on the motherboard<br>
 
   <img src="LCD_shield.png" alt="LCD_shield" height="250">
 
@@ -25,7 +26,7 @@
   <br>
 
 
-  <h3>Arduino Installation</h3>
+  <h2>Arduino Software</h2>
 
   Upload the NASDisplay.ino file to the Arduino.<br>
   The version on github works with a GPIO pin based LCD display (not the I2C version):
@@ -66,7 +67,9 @@
 
 
 
-  <h3>Server Software Installation</h3>
+  <h2>Server Software</h2>
+
+  The server software consists of a python script that communicates with the Arduino.<br>
 
   <h4>Software Versions</h4>
   The 2019 version of the python software was using the PySensors packages.<br>
@@ -76,7 +79,7 @@
 
 
 
-  <h4>Development Software Installation</h4>
+  <h4>Software Development as non-admin</h4>
 
   Download python script onto your server<br>
   <code>cd ~</code>
@@ -88,18 +91,41 @@
   Install lm-sensors to get access to hardware sensors
   <code>sudo apt-get install lm-sensors</code>
 
-
   Install required python libraries<br>
   <code>pip install pyserial</code>
   <code>pip install psutil</code>
   <br>
+  To run the python script:<br>
+  <code>python3 NASDisplay.py</code>
 
+  <h4>Software Development as root</h4>
 
-  <br>
-  <h2> Run Service as root</h2>
   Since we want to be able to shut down the computer with a python
   script, we need to run the service as root.<br>
   <br>
+  Login as root user<br>
+  <code>sudo -i</code>
+
+  If we try to run the script now, we will get an error that the psutil library is missing.<br>
+  That is because we installed it as a non-admin user, and the root user can't see it.<br>
+  <br>
+  The serial and sensor packages need to be installed such that they
+  are available to root.<br>
+  <br>
+  <code>sudo su<br>
+      cd ~<br>
+      umask 022<br>
+      apt-get install python3-psutil
+      </code>
+  <br>
+  <a href="https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux">
+    https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux</a><br>
+  <br>
+
+
+  <h4> Autostart Display script at Boot</h4>
+  Since we want the script to start automatically when the server starts, we will use the systemd mechanism.<br>
+
   In the NASDisplay.service file, the lines will be<br>
   <br>
   <code>
@@ -116,22 +142,36 @@
   Modify as needed (for example, user name and path of python script)<br>
   <br>
 
-  The serial and sensor packages need to be installed such that they
-  are available to root.<br>
-  <br>
-  <code>sudo su<br>
-      cd ~<br>
-      umask 022<br>
-      pip install pyserial<br>
-      pip install psutil</code> <br>
-  <a
-    href="https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux">https://stackoverflow.com/questions/36898474/how-to-install-a-module-for-all-users-with-pip-on-linux</a><br>
-  <br>
-  <h2> Autostart Display script at Boot</h2>
   add the NASDisplay software as a service using systemd.<br>
   add file NASDisplay.service to /etc/systemd/system.<br>
-  Start and stop:<br>
+  Start the service:<br>
   <code>sudo systemctl start NASDisplay.service</code><br>
+  Check the status:<br>
+  <code>sudo systemctl status NASDisplay.service</code><br>
+  If there is an error, check the journal:<br>
+  To see output from service:<br>
+  <code>journalctl -u NASDisplay.service -b</code><br>
+
+  If there was an error, it might be that the psutil library is missing.<br>
+
+  In that case, go back to the terminal and try to run the script as root.<br>
+  <code>ModuleNotFoundError: No module named 'psutil'</code>
+  <br>
+
+
+  When it works:<br>
+  To start automatically at boot:<br>
+  <code>sudo systemctl enable NASDisplay.service</code><br>
+
+
+
+
+
+  <h4>Useful commands</h4>
+
+  Start the service:<br>
+  <code>sudo systemctl start NASDisplay.service</code><br>
+  Stop the service:<br>
   <code>sudo systemctl stop NASDisplay.service</code><br>
   check status:<br>
   <code>sudo systemctl status NASDisplay.service</code><br>
